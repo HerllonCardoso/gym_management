@@ -5,13 +5,35 @@ const Member = require('../models/Member')
 
 module.exports = {
     index(req, res) {
-        Member.all(function(members){
-            return res.render("members/index", {members})
-        })
-        
+        let {filter, page, limit} = req.query;
+
+        page = page || 1
+        limit = limit || 2
+        let offset = limit * (page - 1)
+  
+        const params = {
+            filter,
+            page,
+            limit,
+            offset,
+            callback(members){
+  
+                  const pagination = {
+                      total: Math.ceil(members[0].total / limit),
+                      page
+                  }
+                  return res.render("members/index", {members, pagination, filter })
+            }
+        }
+      
+        Member.paginate(params);
     },
     create(req, res) {
-        return res.render("members/create")
+
+        Member.instructorsSelectOptions(function(options){
+            return res.render("members/create", {instructorOptions: options})
+        })
+
     },
     post(req, res) {
         const keys = Object.keys(req.body)
@@ -21,11 +43,12 @@ module.exports = {
                 return res.send('Please, fill all fields ')
             }
         }
+    
+        Member.create(req.body, function(member) {
+                return res.redirect(`/members/${member.id}`);
+    });
+},
 
-        Member.create(req.body, function(member){
-            return res.redirect(`/members/${member.id}`)
-        })
-    },
     show(req, res) {
         Member.find(req.params.id, function(member){
             if(!member) return res.send("Member not found!")
@@ -42,8 +65,12 @@ module.exports = {
             if(!member) return res.send("Member not found!")
 
             member.birth = date(member.birth).iso
+
+            Member.instructorsSelectOptions(function(options){
+                return res.render("members/edit", {member, instructorOptions: options})
+            })
        
-            return res.render("members/edit", {member})
+            
         })
     },
     put(req, res) {
